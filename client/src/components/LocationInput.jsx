@@ -43,7 +43,7 @@ export default function LocationInput({ location, onLocation }) {
     setGeocodeLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(query.trim())}`);
+      const res = await fetch(`/birdbrain-api/geocode?q=${encodeURIComponent(query.trim())}`);
       const data = await res.json();
       if (!res.ok || !data.lat) {
         setError(data.error || 'Location not found. Try a more specific place name.');

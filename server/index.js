@@ -36,7 +36,7 @@ function loadTaxonomyFromDisk() {
 
 // Serve the full taxonomy for client-side filtering.
 // On first call (or after 2 weeks), downloads from eBird and caches to disk.
-app.get('/api/taxonomy', async (req, res) => {
+app.get('/birdbrain-api/taxonomy', async (req, res) => {
   if (taxonomyMemCache) return res.json(taxonomyMemCache);
 
   const fromDisk = loadTaxonomyFromDisk();
@@ -77,7 +77,7 @@ app.get('/api/taxonomy', async (req, res) => {
 });
 
 // Geocode a place name using Nominatim (OpenStreetMap) — no API key required
-app.get('/api/geocode', async (req, res) => {
+app.get('/birdbrain-api/geocode', async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'Query required' });
 
@@ -97,7 +97,7 @@ app.get('/api/geocode', async (req, res) => {
 });
 
 // Get recent nearby observations for a species
-app.get('/api/sightings/nearby', async (req, res) => {
+app.get('/birdbrain-api/sightings/nearby', async (req, res) => {
   const { speciesCode, lat, lng, days, dist, apiKey } = req.query;
   if (!apiKey) return res.status(400).json({ error: 'API key required' });
   if (!speciesCode || !lat || !lng) {

@@ -35,7 +35,7 @@ export default function App() {
         days,
         apiKey,
       });
-      const res = await fetch(`/api/sightings/nearby?${params}`);
+      const res = await fetch(`/birdbrain-api/sightings/nearby?${params}`);
       const data = await res.json();
       if (!res.ok) {
         setSearchError(data.error || 'Failed to fetch sightings.');

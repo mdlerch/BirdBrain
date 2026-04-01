@@ -8,7 +8,7 @@ async function fetchTaxonomy(apiKey) {
   if (taxonomyCache) return taxonomyCache;
   if (taxonomyFetchPromise) return taxonomyFetchPromise;
 
-  taxonomyFetchPromise = fetch(`/api/taxonomy?apiKey=${encodeURIComponent(apiKey)}`)
+  taxonomyFetchPromise = fetch(`/birdbrain-api/taxonomy?apiKey=${encodeURIComponent(apiKey)}`)
     .then(r => r.json())
     .then(data => {
       if (Array.isArray(data)) {
