@@ -1,14 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 // Module-level cache so the taxonomy survives component re-mounts
 let taxonomyCache = null;
 let taxonomyFetchPromise = null;
 
-async function fetchTaxonomy(apiKey) {
+async function fetchTaxonomy() {
   if (taxonomyCache) return taxonomyCache;
   if (taxonomyFetchPromise) return taxonomyFetchPromise;
 
-  taxonomyFetchPromise = fetch(`/birdbrain-api/taxonomy?apiKey=${encodeURIComponent(apiKey)}`)
+  taxonomyFetchPromise = fetch('/birdbrain-api/taxonomy')
     .then(r => r.json())
     .then(data => {
       if (Array.isArray(data)) {
@@ -47,7 +47,7 @@ function filterSpecies(taxonomy, query) {
     .map(({ sp }) => sp);
 }
 
-export default function SpeciesSearch({ apiKey, onSelect, selected }) {
+export default function SpeciesSearch({ hasApiKey, onSelect, selected }) {
   const [query, setQuery] = useState(selected?.comName || '');
   const [results, setResults] = useState([]);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -59,18 +59,18 @@ export default function SpeciesSearch({ apiKey, onSelect, selected }) {
     if (selected) setQuery(selected.comName);
   }, [selected]);
 
-  // Load taxonomy as soon as we have an API key
+  // Load taxonomy as soon as the server has an API key
   useEffect(() => {
-    if (!apiKey || taxonomyCache) return;
+    if (!hasApiKey || taxonomyCache) return;
     setLoadingTaxonomy(true);
     setTaxonomyError('');
-    fetchTaxonomy(apiKey)
+    fetchTaxonomy()
       .then(() => setLoadingTaxonomy(false))
       .catch(err => {
         setTaxonomyError(err.message);
         setLoadingTaxonomy(false);
       });
-  }, [apiKey]);
+  }, [hasApiKey]);
 
   function handleChange(value) {
     setQuery(value);
@@ -108,7 +108,7 @@ export default function SpeciesSearch({ apiKey, onSelect, selected }) {
     }
   }
 
-  const placeholder = !apiKey
+  const placeholder = !hasApiKey
     ? 'Enter API key first'
     : loadingTaxonomy
     ? 'Loading species list…'
@@ -127,7 +127,7 @@ export default function SpeciesSearch({ apiKey, onSelect, selected }) {
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         autoComplete="off"
-        disabled={!apiKey || loadingTaxonomy}
+        disabled={!hasApiKey || loadingTaxonomy}
       />
       {taxonomyError && <div className="error">{taxonomyError}</div>}
       {open && results.length > 0 && (

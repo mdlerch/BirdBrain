@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = join(__dirname, 'cache');
 const TAXONOMY_FILE = join(CACHE_DIR, 'taxonomy.json');
+const CONFIG_FILE = join(CACHE_DIR, 'config.json');
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
 const app = express();
@@ -20,22 +21,75 @@ function ebirdHeaders(apiKey) {
   return { 'X-eBirdApiToken': apiKey };
 }
 
-// In-memory taxonomy cache (avoids re-reading disk on every request)
+// --- Config (stored API key) ---
+
+let storedApiKey = null;
+
+function loadConfig() {
+  if (!existsSync(CONFIG_FILE)) return;
+  try {
+    const { apiKey } = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
+    if (apiKey) storedApiKey = apiKey;
+  } catch {}
+}
+
+function saveConfig() {
+  if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR);
+  writeFileSync(CONFIG_FILE, JSON.stringify({ apiKey: storedApiKey }));
+}
+
+loadConfig();
+
+// GET — check whether a key is stored (never returns the key itself)
+app.get('/birdbrain-api/config/apikey', (req, res) => {
+  res.json({ configured: !!storedApiKey });
+});
+
+// POST — validate and store a new key
+app.post('/birdbrain-api/config/apikey', async (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey) return res.status(400).json({ error: 'API key required' });
+
+  try {
+    // Validate with a lightweight eBird call
+    const response = await fetch(
+      `${EBIRD_BASE}/ref/taxonomy/ebird?fmt=json&q=Bald+Eagle`,
+      { headers: ebirdHeaders(apiKey) }
+    );
+    if (!response.ok) return res.status(401).json({ error: 'Invalid API key — eBird rejected it.' });
+
+    storedApiKey = apiKey;
+    taxonomyMemCache = null; // clear so it re-downloads with the new key if needed
+    saveConfig();
+    res.json({ configured: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE — remove stored key
+app.delete('/birdbrain-api/config/apikey', (req, res) => {
+  storedApiKey = null;
+  taxonomyMemCache = null;
+  saveConfig();
+  res.json({ configured: false });
+});
+
+// --- Taxonomy ---
+
 let taxonomyMemCache = null;
 
 function loadTaxonomyFromDisk() {
   if (!existsSync(TAXONOMY_FILE)) return null;
   try {
     const { timestamp, species } = JSON.parse(readFileSync(TAXONOMY_FILE, 'utf8'));
-    if (Date.now() - timestamp > TWO_WEEKS_MS) return null; // expired
+    if (Date.now() - timestamp > TWO_WEEKS_MS) return null;
     return species;
   } catch {
     return null;
   }
 }
 
-// Serve the full taxonomy for client-side filtering.
-// On first call (or after 2 weeks), downloads from eBird and caches to disk.
 app.get('/birdbrain-api/taxonomy', async (req, res) => {
   if (taxonomyMemCache) return res.json(taxonomyMemCache);
 
@@ -45,23 +99,18 @@ app.get('/birdbrain-api/taxonomy', async (req, res) => {
     return res.json(taxonomyMemCache);
   }
 
-  const { apiKey } = req.query;
-  if (!apiKey) {
-    return res.status(400).json({ error: 'API key required to download taxonomy' });
-  }
+  if (!storedApiKey) return res.status(400).json({ error: 'API key not configured' });
 
   try {
     console.log('Downloading eBird taxonomy...');
     const response = await fetch(`${EBIRD_BASE}/ref/taxonomy/ebird?fmt=json`, {
-      headers: ebirdHeaders(apiKey),
+      headers: ebirdHeaders(storedApiKey),
     });
     if (!response.ok) {
       const text = await response.text();
       return res.status(response.status).json({ error: text || 'Failed to fetch taxonomy' });
     }
     const full = await response.json();
-
-    // Slim down to only the fields we need
     const species = full.map(({ speciesCode, comName, sciName, category }) => ({
       speciesCode, comName, sciName, category,
     }));
@@ -76,7 +125,8 @@ app.get('/birdbrain-api/taxonomy', async (req, res) => {
   }
 });
 
-// Geocode a place name using Nominatim (OpenStreetMap) — no API key required
+// --- Geocode ---
+
 app.get('/birdbrain-api/geocode', async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'Query required' });
@@ -96,10 +146,12 @@ app.get('/birdbrain-api/geocode', async (req, res) => {
   }
 });
 
-// Get recent nearby observations for a species
+// --- Sightings ---
+
 app.get('/birdbrain-api/sightings/nearby', async (req, res) => {
-  const { speciesCode, lat, lng, days, dist, apiKey } = req.query;
-  if (!apiKey) return res.status(400).json({ error: 'API key required' });
+  if (!storedApiKey) return res.status(400).json({ error: 'API key not configured' });
+
+  const { speciesCode, lat, lng, days, dist } = req.query;
   if (!speciesCode || !lat || !lng) {
     return res.status(400).json({ error: 'speciesCode, lat, and lng required' });
   }
@@ -110,7 +162,7 @@ app.get('/birdbrain-api/sightings/nearby', async (req, res) => {
   try {
     const url = `${EBIRD_BASE}/data/obs/geo/recent/${speciesCode}` +
       `?lat=${lat}&lng=${lng}&back=${backDays}&dist=${distKm}&sort=date&detail=full`;
-    const response = await fetch(url, { headers: ebirdHeaders(apiKey) });
+    const response = await fetch(url, { headers: ebirdHeaders(storedApiKey) });
     if (!response.ok) {
       const text = await response.text();
       return res.status(response.status).json({ error: text || 'eBird API error' });

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ApiKeyInput from './components/ApiKeyInput';
 import SpeciesSearch from './components/SpeciesSearch';
 import LocationInput from './components/LocationInput';
 import SightingsList from './components/SightingsList';
 
 export default function App() {
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('ebird_api_key') || '');
+  const [hasApiKey, setHasApiKey] = useState(false);
   const [species, setSpecies] = useState(null);
   const [days, setDays] = useState(14);
   const [userLocation, setUserLocation] = useState(null);
@@ -13,17 +13,16 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
 
-  function saveApiKey(key) {
-    setApiKey(key);
-    if (key) {
-      localStorage.setItem('ebird_api_key', key);
-    } else {
-      localStorage.removeItem('ebird_api_key');
-    }
-  }
+  // Check on load whether the server already has an API key stored
+  useEffect(() => {
+    fetch('/birdbrain-api/config/apikey')
+      .then(r => r.json())
+      .then(data => setHasApiKey(data.configured))
+      .catch(() => {});
+  }, []);
 
   async function findSightings() {
-    if (!species || !userLocation || !apiKey) return;
+    if (!species || !userLocation || !hasApiKey) return;
     setLoading(true);
     setSearchError('');
     setSightings(null);
@@ -33,7 +32,6 @@ export default function App() {
         lat: userLocation.lat,
         lng: userLocation.lng,
         days,
-        apiKey,
       });
       const res = await fetch(`/birdbrain-api/sightings/nearby?${params}`);
       const data = await res.json();
@@ -49,19 +47,19 @@ export default function App() {
     }
   }
 
-  const canSearch = apiKey && species && userLocation && !loading;
+  const canSearch = hasApiKey && species && userLocation && !loading;
 
   return (
     <>
       <h1>BirdBrain</h1>
       <p className="subtitle">Find nearby bird sightings using eBird data</p>
 
-      <ApiKeyInput apiKey={apiKey} onSave={saveApiKey} />
+      <ApiKeyInput configured={hasApiKey} onConfigured={setHasApiKey} />
 
       <div className="card">
         <h2>Find Sightings</h2>
         <div className="field-group">
-          <SpeciesSearch apiKey={apiKey} onSelect={setSpecies} selected={species} />
+          <SpeciesSearch hasApiKey={hasApiKey} onSelect={setSpecies} selected={species} />
 
           <div>
             <label>Your location</label>
@@ -85,7 +83,7 @@ export default function App() {
             </button>
           </div>
 
-          {!apiKey && <div className="error">Enter your eBird API key above to get started.</div>}
+          {!hasApiKey && <div className="error">Enter your eBird API key above to get started.</div>}
           {searchError && <div className="error">{searchError}</div>}
         </div>
       </div>
