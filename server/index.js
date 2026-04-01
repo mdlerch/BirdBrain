@@ -10,7 +10,7 @@ const TAXONOMY_FILE = join(CACHE_DIR, 'taxonomy.json');
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
 const app = express();
-const PORT = 3001;
+const PORT = 3003;
 const EBIRD_BASE = 'https://api.ebird.org/v2';
 
 app.use(cors({ origin: 'http://localhost:5173' }));
