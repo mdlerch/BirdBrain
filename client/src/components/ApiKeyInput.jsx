@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 export default function ApiKeyInput({ configured, onConfigured }) {
-  const [expanded, setExpanded] = useState(!configured);
+  const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -22,7 +22,7 @@ export default function ApiKeyInput({ configured, onConfigured }) {
         setError(data.error || 'Failed to save API key.');
       } else {
         setValue('');
-        setExpanded(false);
+        setEditing(false);
         onConfigured(true);
       }
     } catch {
@@ -35,10 +35,10 @@ export default function ApiKeyInput({ configured, onConfigured }) {
   async function handleRemove() {
     await fetch('/birdbrain-api/config/apikey', { method: 'DELETE' });
     onConfigured(false);
-    setExpanded(true);
+    setEditing(false);
   }
 
-  if (configured && !expanded) {
+  if (configured && !editing) {
     return (
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -48,7 +48,7 @@ export default function ApiKeyInput({ configured, onConfigured }) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="secondary" style={{ fontSize: '0.82rem', padding: '6px 12px' }}
-              onClick={() => { setExpanded(true); setError(''); }}>
+              onClick={() => { setEditing(true); setError(''); }}>
               Change
             </button>
             <button className="secondary" style={{ fontSize: '0.82rem', padding: '6px 12px', color: 'var(--danger)' }}
@@ -81,7 +81,7 @@ export default function ApiKeyInput({ configured, onConfigured }) {
           {saving ? <><span className="spinner" />Validating…</> : 'Save'}
         </button>
         {configured && (
-          <button className="secondary" onClick={() => setExpanded(false)}>Cancel</button>
+          <button className="secondary" onClick={() => setEditing(false)}>Cancel</button>
         )}
       </div>
       {error && <div className="error">{error}</div>}
